@@ -81,7 +81,7 @@ def contacts_stats(c):
     today = datetime.now().strftime("%Y-%m-%d")
     return {
         "dm_total":   sum(1 for d in c.values() if d.get("status") == "dm_sent"),
-        "dm_today":   sum(1 for d in c.values() if d.get("status") == "dm_sent" and d.get("timestamp","").startswith(today)),
+        "dm_today":   sum(1 for d in c.values() if d.get("dm_sent_date","").startswith(today)),
         "replied":    sum(1 for d in c.values() if d.get("status") == "replied"),
         "warming":    sum(1 for d in c.values() if d.get("stage") in ("new","followed","liked_post","liked_story")),
         "not_target": sum(1 for d in c.values() if d.get("status") == "not_target"),
@@ -307,9 +307,9 @@ elif page == "Strategia":
         c1,a1,c2,a2,c3,a3,c4 = st.columns([2,.35,2,.35,2,.35,2])
         with c1: st.markdown('<div class="flow-step"><div class="flow-step-day">Scoperta</div><div class="flow-step-icon">🔍</div><div class="flow-step-title">Profilo trovato</div><div class="flow-step-desc">AI analizza e qualifica</div></div>', unsafe_allow_html=True)
         with a1: st.markdown('<div class="flow-arrow" style="padding-top:38px">→</div>', unsafe_allow_html=True)
-        with c2: st.markdown('<div class="flow-step"><div class="flow-step-day">Giorno 1</div><div class="flow-step-icon">👤❤️</div><div class="flow-step-title">Follow + Like post</div><div class="flow-step-desc">Prima interazione naturale</div></div>', unsafe_allow_html=True)
+        with c2: st.markdown('<div class="flow-step"><div class="flow-step-day">Giorno 1</div><div class="flow-step-icon">👤</div><div class="flow-step-title">Follow</div><div class="flow-step-desc">Prima interazione naturale</div></div>', unsafe_allow_html=True)
         with a2: st.markdown('<div class="flow-arrow" style="padding-top:38px">→</div>', unsafe_allow_html=True)
-        with c3: st.markdown('<div class="flow-step"><div class="flow-step-day">Giorno 2</div><div class="flow-step-icon">👁️</div><div class="flow-step-title">Like storia</div><div class="flow-step-desc">Visibilità aggiuntiva</div></div>', unsafe_allow_html=True)
+        with c3: st.markdown('<div class="flow-step"><div class="flow-step-day">Giorno 2</div><div class="flow-step-icon">👁️❤️</div><div class="flow-step-title">Like storia</div><div class="flow-step-desc">Visibilità aggiuntiva</div></div>', unsafe_allow_html=True)
         with a3: st.markdown('<div class="flow-arrow" style="padding-top:38px">→</div>', unsafe_allow_html=True)
         with c4: st.markdown('<div class="flow-step"><div class="flow-step-day">Giorno 3</div><div class="flow-step-icon">💬</div><div class="flow-step-title">DM personalizzato</div><div class="flow-step-desc">Messaggio AI su misura</div></div>', unsafe_allow_html=True)
 
