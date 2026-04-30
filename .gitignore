@@ -1,0 +1,8 @@
+.env
+session.json
+contacts.json
+tool.pid
+tool.log
+__pycache__/
+*.pyc
+.streamlit/

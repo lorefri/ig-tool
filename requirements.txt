@@ -1,0 +1,6 @@
+instagrapi
+anthropic
+python-dotenv
+rich
+streamlit
+requests
