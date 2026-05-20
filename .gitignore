@@ -1,8 +1,25 @@
 .env
+.env.staging
 session.json
 contacts.json
+contacts.*.json
 tool.pid
 tool.log
+tool.*.log
+server.log
+*.log
+logs/
+backups/
 __pycache__/
 *.pyc
 .streamlit/
+
+# Client desktop — artefatti build
+client/build/
+client/dist/
+client/.venv/
+client/*.spec
+
+# Sito statico — output
+site-lenoria/dist/downloads/Lenoria-*.zip
+

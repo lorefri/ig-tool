@@ -1,0 +1,7 @@
+requests>=2.31
+instagrapi>=2.0
+# Tray icon (menubar Mac / system tray Win)
+pystray>=0.19
+Pillow>=10.0
+# Dev only — solo per build packaging (PyInstaller):
+pyinstaller>=6.0
