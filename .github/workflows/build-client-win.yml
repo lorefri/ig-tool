@@ -1,0 +1,55 @@
+name: Build Lenoria Client (Windows)
+
+# Trigger manuale dall'UI GitHub (Actions → "Run workflow")
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Versione (es. 0.1.0) — solo etichetta artifact'
+        required: false
+        default: '0.1.0'
+
+jobs:
+  build-windows:
+    name: Build .exe Windows
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: client/requirements.txt
+
+      - name: Install dependencies
+        working-directory: client
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build .exe via PyInstaller
+        working-directory: client
+        run: python build.py
+
+      - name: Show output
+        working-directory: client
+        run: |
+          dir dist
+          dir dist\Lenoria
+
+      - name: Zip the build folder
+        working-directory: client\dist
+        run: Compress-Archive -Path Lenoria -DestinationPath Lenoria-windows.zip -Force
+
+      - name: Upload artifact (zip della cartella Lenoria)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lenoria-windows-${{ inputs.version_tag }}
+          path: client/dist/Lenoria-windows.zip
+          retention-days: 30
+          if-no-files-found: error
