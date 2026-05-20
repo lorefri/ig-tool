@@ -54,7 +54,7 @@ print("    " + " ".join(cmd))
 print()
 result = subprocess.run(cmd, cwd=HERE)
 if result.returncode != 0:
-    print(f"\n✗ Build fallito (exit {result.returncode})")
+    print(f"\n[FAIL] Build fallito (exit {result.returncode})")
     sys.exit(result.returncode)
 
 # Esito
@@ -73,7 +73,7 @@ elif sys.platform == "win32":
 if out:
     size_mb = sum(f.stat().st_size for f in out.rglob("*") if f.is_file()) / (1024 * 1024) \
               if out.is_dir() else out.stat().st_size / (1024 * 1024)
-    print(f"\n✓ Build OK: {out}  ({size_mb:.1f} MB)")
+    print(f"\n[OK] Build OK: {out}  ({size_mb:.1f} MB)")
 else:
-    print(f"\n⚠ Build completato ma output non trovato in {dist}")
+    print(f"\n[WARN] Build completato ma output non trovato in {dist}")
     sys.exit(1)
