@@ -38,14 +38,51 @@ cmd = [
     "--collect-all", "instagrapi",        # include risorse non-Python
     "--collect-all", "pystray",           # backend menubar Mac/Win
     "--collect-all", "PIL",               # icona tray generata con Pillow
+    # pywebview: collect SOLO i moduli Python (no bundle gtk/qt/cef che non
+    # usiamo). Hidden-import del backend specifico viene aggiunto sotto in
+    # base alla piattaforma — su Mac WebKit nativo via Cocoa, su Win WebView2.
+    "--collect-submodules", "webview",
     "--collect-submodules", "lenoria_client",
     "--hidden-import", "lenoria_client.ig.actions",
     "--hidden-import", "lenoria_client.ig.client",
     "--hidden-import", "lenoria_client.tray",
+    "--hidden-import", "lenoria_client.webui",
+    # Esclude moduli pesanti che non usiamo (riduce drasticamente il bundle).
+    # pandas/pyarrow/streamlit sono tirati transitivamente ma il client non li
+    # usa (giravano sull'app.py legacy Streamlit lato server). Da soli pesano ~150MB.
+    "--exclude-module", "pandas",
+    "--exclude-module", "pyarrow",
+    "--exclude-module", "streamlit",
+    "--exclude-module", "altair",
+    "--exclude-module", "tornado",
+    # imageio_ffmpeg = ffmpeg binary (73MB!), serve solo per upload video.
+    # Il client Lenoria invia solo DM testuali, niente media → si elimina.
+    "--exclude-module", "imageio",
+    "--exclude-module", "imageio_ffmpeg",
+    "--exclude-module", "moviepy",
+    "--exclude-module", "tkinter",
+    "--exclude-module", "matplotlib",
+    "--exclude-module", "scipy",
+    "--exclude-module", "numpy.tests",
+    "--exclude-module", "PyQt5",
+    "--exclude-module", "PyQt6",
+    "--exclude-module", "PySide2",
+    "--exclude-module", "PySide6",
+    "--exclude-module", "webview.platforms.gtk",
+    "--exclude-module", "webview.platforms.qt",
+    "--exclude-module", "webview.platforms.cef",
 ]
 
 if sys.platform == "darwin":
-    cmd += ["--osx-bundle-identifier", BUNDLE_ID]
+    cmd += [
+        "--osx-bundle-identifier", BUNDLE_ID,
+        "--hidden-import", "webview.platforms.cocoa",
+        "--strip",                        # rimuove symbols Mach-O (-30/40%)
+    ]
+elif sys.platform == "win32":
+    cmd += [
+        "--hidden-import", "webview.platforms.edgechromium",
+    ]
 
 cmd.append(str(ENTRY))
 

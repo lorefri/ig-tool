@@ -3,5 +3,7 @@ instagrapi>=2.0
 # Tray icon (menubar Mac / system tray Win)
 pystray>=0.19
 Pillow>=10.0
+# Finestra embedded che renderizza app.lenoria.it (WebKit Mac / Edge WebView2 Win)
+pywebview>=5.0
 # Dev only — solo per build packaging (PyInstaller):
 pyinstaller>=6.0

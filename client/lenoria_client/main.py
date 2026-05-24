@@ -62,33 +62,64 @@ def cmd_run(args):
         log.warning("DRY-RUN attivo: le azioni NON verranno eseguite su Instagram.")
     worker = Worker(api, dry_run=args.dry_run)
 
-    # Gestione SIGINT/SIGTERM pulita (utile in dev da terminale; col tray usi "Esci")
+    # Gestione SIGINT/SIGTERM pulita (utile in dev da terminale)
     def _shutdown(signum, frame):
         log.info(f"Ricevuto segnale {signum}, fermo il worker...")
         worker.stop()
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    # Se --no-tray oppure ambiente senza display, fallback a foreground (vecchio comportamento)
-    use_tray = not args.no_tray
-    if use_tray:
+    # Modalità headless (--no-tray): solo worker loop, niente UI. Utile per
+    # eseguire l'app in background su CI / VPS / dev terminal.
+    if args.no_tray:
+        try:
+            worker.run()
+        except Exception as e:
+            log.exception(f"Errore inatteso nel worker: {e}")
+            try:
+                api.report_error(message=str(e), level="critical")
+            except Exception:
+                pass
+            return 3
+        return 0
+
+    # Modalità app: worker in thread daemon + finestra pywebview nel main thread
+    # (su macOS pywebview richiede il main thread per il loop Cocoa).
+    import threading
+    worker_thread = threading.Thread(target=_worker_safe_run,
+                                     args=(worker, api, log),
+                                     name="lenoria-worker", daemon=True)
+    worker_thread.start()
+
+    try:
+        from .webui import launch as launch_webui
+        launch_webui(api, server, worker=worker)
+        return 0
+    except Exception as e:
+        log.warning(f"WebUI non disponibile ({e}), fallback al tray classico.")
         try:
             from .tray import TrayApp
             TrayApp(worker, server).run()
             return 0
-        except Exception as e:
-            log.warning(f"Tray non disponibile, eseguo in foreground: {e}")
+        except Exception as e2:
+            log.warning(f"Anche tray non disponibile ({e2}), eseguo in foreground.")
+            try:
+                worker_thread.join()
+            except KeyboardInterrupt:
+                worker.stop()
+            return 0
 
+
+def _worker_safe_run(worker, api, log):
+    """Esegue il loop worker in un thread daemon catturando le eccezioni."""
     try:
         worker.run()
     except Exception as e:
-        log.exception(f"Errore inatteso nel worker: {e}")
+        log.exception(f"Errore inatteso nel worker thread: {e}")
         try:
             api.report_error(message=str(e), level="critical")
         except Exception:
             pass
-        return 3
-    return 0
 
 
 def cmd_status(args):

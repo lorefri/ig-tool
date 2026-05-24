@@ -83,6 +83,15 @@ class ApiClient:
 
     # ── endpoint autenticati ──────────────────────────────────────────────────
 
+    def web_session(self) -> dict:
+        """Scambia client_token → JWT Supabase short-lived per autenticare
+        la finestra pywebview embedded del client. Ritorna {access_token,
+        refresh_token, expires_in}."""
+        r = requests.post(f"{self.server_url}/api/worker/web-session",
+                          headers=self._headers(), timeout=self.timeout)
+        self._check_response(r)
+        return r.json()
+
     def heartbeat(self, running: bool = True, stats: Optional[dict] = None,
                   last_error: Optional[str] = None) -> dict:
         payload = {"version": __version__, "running": running}
