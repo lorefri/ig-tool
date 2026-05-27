@@ -50,30 +50,71 @@ def cmd_pair(args):
     return 0
 
 
+class _WorkerController:
+    """Gestisce il ciclo di vita del worker in un thread daemon, avviabile e
+    fermabile a runtime. Il bridge della webview lo usa per partire al login
+    (quando arriva il client_token) e fermarsi al logout."""
+
+    def __init__(self, api, log, dry_run=False):
+        self.api = api
+        self.log = log
+        self.dry_run = dry_run
+        self._worker = None
+        self._thread = None
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+        if not self.api.token:
+            self.log.warning("WorkerController.start() senza token — ignoro")
+            return
+        import threading
+        self._worker = Worker(self.api, dry_run=self.dry_run)
+        self._thread = threading.Thread(target=_worker_safe_run,
+                                        args=(self._worker, self.api, self.log),
+                                        name="lenoria-worker", daemon=True)
+        self._thread.start()
+        self.log.info("Worker avviato")
+
+    def start_blocking(self):
+        self._worker = Worker(self.api, dry_run=self.dry_run)
+        self._worker.run()
+
+    def stop(self):
+        if self._worker:
+            try:
+                self._worker.stop()
+            except Exception as e:
+                self.log.warning(f"Errore fermando worker: {e}")
+
+    @property
+    def worker(self):
+        return self._worker
+
+
 def cmd_run(args):
     log = get("main")
     server = _resolve_server(args)
     token = load_token(server)
-    if not token:
-        log.error("Nessun token. Esegui 'lenoria pair' prima.")
-        return 1
-    api = ApiClient(server, token=token)
+    api = ApiClient(server, token=token)  # token può essere None: login dalla webview
     if args.dry_run:
         log.warning("DRY-RUN attivo: le azioni NON verranno eseguite su Instagram.")
-    worker = Worker(api, dry_run=args.dry_run)
 
-    # Gestione SIGINT/SIGTERM pulita (utile in dev da terminale)
-    def _shutdown(signum, frame):
-        log.info(f"Ricevuto segnale {signum}, fermo il worker...")
-        worker.stop()
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
+    controller = _WorkerController(api, log, dry_run=args.dry_run)
 
-    # Modalità headless (--no-tray): solo worker loop, niente UI. Utile per
-    # eseguire l'app in background su CI / VPS / dev terminal.
+    # Modalità headless (--no-tray): solo worker loop, niente UI. Richiede un token
+    # già presente (non c'è modo di fare login interattivo). Utile su CI / VPS / dev.
     if args.no_tray:
+        if not token:
+            log.error("Nessun token in --no-tray: fai prima il login dall'app o 'lenoria pair'.")
+            return 1
+        def _shutdown(signum, frame):
+            log.info(f"Ricevuto segnale {signum}, fermo il worker...")
+            controller.stop()
+        signal.signal(signal.SIGINT, _shutdown)
+        signal.signal(signal.SIGTERM, _shutdown)
         try:
-            worker.run()
+            controller.start_blocking()
         except Exception as e:
             log.exception(f"Errore inatteso nel worker: {e}")
             try:
@@ -83,30 +124,39 @@ def cmd_run(args):
             return 3
         return 0
 
-    # Modalità app: worker in thread daemon + finestra pywebview nel main thread
-    # (su macOS pywebview richiede il main thread per il loop Cocoa).
-    import threading
-    worker_thread = threading.Thread(target=_worker_safe_run,
-                                     args=(worker, api, log),
-                                     name="lenoria-worker", daemon=True)
-    worker_thread.start()
+    # Modalità app: la finestra pywebview è SEMPRE aperta. Se c'è già un token avviamo
+    # subito il worker; altrimenti l'utente fa login nella webview e il bridge
+    # (save_client_token) avvia il worker. Il logout lo ferma.
+    if token:
+        controller.start()
+
+    def _shutdown(signum, frame):
+        log.info(f"Ricevuto segnale {signum}, fermo il worker...")
+        controller.stop()
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
 
     try:
         from .webui import launch as launch_webui
-        launch_webui(api, server, worker=worker)
+        launch_webui(api, server, controller=controller)
         return 0
     except Exception as e:
         log.warning(f"WebUI non disponibile ({e}), fallback al tray classico.")
+        # Senza webview non c'è modo di fare login: serve un token già presente.
+        if not load_token(server):
+            log.error("Nessun token e WebUI non disponibile: esegui 'lenoria pair'.")
+            return 1
         try:
             from .tray import TrayApp
-            TrayApp(worker, server).run()
+            TrayApp(controller.worker, server).run()
             return 0
         except Exception as e2:
             log.warning(f"Anche tray non disponibile ({e2}), eseguo in foreground.")
-            try:
-                worker_thread.join()
-            except KeyboardInterrupt:
-                worker.stop()
+            if controller._thread:
+                try:
+                    controller._thread.join()
+                except KeyboardInterrupt:
+                    controller.stop()
             return 0
 
 
@@ -182,18 +232,14 @@ def main():
     args = p.parse_args()
     configure(verbose=args.verbose)
 
-    # Default smart quando lanciato senza subcommand (es. doppio-click su .app):
-    # se c'è già un token → run (con tray); altrimenti → pair (con browser).
+    # Default quando lanciato senza subcommand (es. doppio-click su .app):
+    # apre sempre l'app (webview). Con token → worker parte subito; senza token
+    # → l'utente fa login email+password nella finestra e il worker parte dopo.
+    # (Il vecchio pairing a codice resta come comando CLI 'lenoria pair' di fallback.)
     if not getattr(args, "cmd", None):
-        server = _resolve_server(args)
-        if load_token(server):
-            args.dry_run = False
-            args.no_tray = False
-            sys.exit(cmd_run(args))
-        else:
-            args.no_browser = False
-            args.force = False
-            sys.exit(cmd_pair(args))
+        args.dry_run = False
+        args.no_tray = False
+        sys.exit(cmd_run(args))
 
     sys.exit(args.func(args))
 
